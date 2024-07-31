@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualización de KD-Tree</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        h1 {
+            color: #2c3e50;
+        }
+        #controls {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        input, button {
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #2c3e50;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        #tree-container {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+            width: 100%;
+            height: 500px;
+        }
+        .node {
+            position: absolute;
+            padding: 5px 10px;
+            background-color: green;
+            color: white;
+            border-radius: 5px;
+            text-align: center;
+            transform: translate(-50%, -50%);
+            opacity: 0;
+            transition: opacity 1s ease-in-out, top 1s ease-in-out, left 1s ease-in-out, background-color 0.5s;
+        }
+        .new-node {
+            background-color: blue;
+        }
+        .delete-node {
+            background-color: red;
+        }
+        #message {
+            margin-top: 10px;
+            color: #3498db;
+        }
+    </style>
+</head>
+<body>
+    <h1>Visualización de KD-Tree</h1>
+    <div id="controls">
+        <input type="number" id="x-coordinate" placeholder="Coordenada X">
+        <input type="number" id="y-coordinate" placeholder="Coordenada Y">
+        <button onclick="insertPoint()">Insertar Punto</button>
+        <button onclick="removePoint()">Eliminar Punto</button>
+    </div>
+    <div id="tree-container"></div>
+    <div id="message"></div>
+    <script>
+        class Nodo {
+            constructor(punto, discriminador = null, izquierda = null, derecha = null) {
+                this.punto = punto;
+                this.discriminador = discriminador;
+                this.izquierda = izquierda;
+                this.derecha = derecha;
+            }
+        }
+
+        let kdTree = null;
+        let lastInsertedNode = null;
+
+        function insertar(nodo, punto, depth = 0) {
+            if (!nodo) {
+                lastInsertedNode = new Nodo(punto, depth % 2);
+                return lastInsertedNode;
+            }
+
+            const axis = depth % 2;
+            if (punto[axis] < nodo.punto[axis]) {
+                nodo.izquierda = insertar(nodo.izquierda, punto, depth + 1);
+            } else {
+                nodo.derecha = insertar(nodo.derecha, punto, depth + 1);
+            }
+
+            return nodo;
+        }
+
+        function eliminar(nodo, punto, depth = 0) {
+            if (!nodo) return null;
+
+            const axis = depth % 2;
+            if (punto[0] === nodo.punto[0] && punto[1] === nodo.punto[1]) {
+                const container = document.getElementById('tree-container');
+                const nodeElement = container.querySelector(`[data-x="${punto[0]}"][data-y="${punto[1]}"]`);
+                if (nodeElement) {
+                    nodeElement.classList.add('delete-node');
+                }
+
+                setTimeout(() => {
+                    kdTree = eliminarNodo(kdTree, punto);
+                    kdTree = reconstruirKdTree(obtenerPuntos(kdTree));
+                    actualizarVisualizacion();
+                }, 500);
+
+                return null;
+            } else if (punto[axis] < nodo.punto[axis]) {
+                nodo.izquierda = eliminar(nodo.izquierda, punto, depth + 1);
+            } else {
+                nodo.derecha = eliminar(nodo.derecha, punto, depth + 1);
+            }
+
+            return nodo;
+        }
+
+        function eliminarNodo(nodo, punto, depth = 0) {
+            if (!nodo) return null;
+
+            const axis = depth % 2;
+            if (punto[0] === nodo.punto[0] && punto[1] === nodo.punto[1]) {
+                if (nodo.derecha) {
+                    const minNode = encontrarMin(nodo.derecha, axis);
+                    nodo.punto = minNode.punto;
+                    nodo.derecha = eliminarNodo(nodo.derecha, minNode.punto, depth + 1);
+                } else if (nodo.izquierda) {
+                    const minNode = encontrarMin(nodo.izquierda, axis);
+                    nodo.punto = minNode.punto;
+                    nodo.derecha = eliminarNodo(nodo.izquierda, minNode.punto, depth + 1);
+                    nodo.izquierda = null;
+                } else {
+                    return null;
+                }
+            } else if (punto[axis] < nodo.punto[axis]) {
+                nodo.izquierda = eliminarNodo(nodo.izquierda, punto, depth + 1);
+            } else {
+                nodo.derecha = eliminarNodo(nodo.derecha, punto, depth + 1);
+            }
+
+            return nodo;
+        }
+
+        function encontrarMin(nodo, axis, depth = 0) {
+            if (!nodo) return null;
+
+            if (depth % 2 === axis) {
+                if (!nodo.izquierda) {
+                    return nodo;
+                }
+                return encontrarMin(nodo.izquierda, axis, depth + 1);
+            }
+
+            const izquierdaMin = encontrarMin(nodo.izquierda, axis, depth + 1);
+            const derechaMin = encontrarMin(nodo.derecha, axis, depth + 1);
+
+            return minNode(nodo, izquierdaMin, derechaMin, axis);
+        }
+
+        function minNode(x, y, z, axis) {
+            let res = x;
+            if (y && y.punto[axis] < res.punto[axis]) {
+                res = y;
+            }
+            if (z && z.punto[axis] < res.punto[axis]) {
+                res = z;
+            }
+            return res;
+        }
+
+        function obtenerPuntos(nodo) {
+            if (!nodo) return [];
+
+            const puntosIzquierda = obtenerPuntos(nodo.izquierda);
+            const puntosDerecha = obtenerPuntos(nodo.derecha);
+
+            return [...puntosIzquierda, nodo.punto, ...puntosDerecha];
+        }
+
+        function reconstruirKdTree(puntos, depth = 0) {
+            if (puntos.length === 0) return null;
+
+            const axis = depth % 2;
+            puntos.sort((a, b) => a[axis] - b[axis]);
+
+            const medianIndex = Math.floor(puntos.length / 2);
+            const nodo = new Nodo(puntos[medianIndex], axis);
+
+            nodo.izquierda = reconstruirKdTree(puntos.slice(0, medianIndex), depth + 1);
+            nodo.derecha = reconstruirKdTree(puntos.slice(medianIndex + 1), depth + 1);
+
+            return nodo;
+        }
+
+        async function actualizarVisualizacion() {
+            const container = document.getElementById('tree-container');
+            container.innerHTML = '';
+            await visualizarKdTree(kdTree, container);
+        }
+
+        function insertPoint() {
+            const x = parseInt(document.getElementById('x-coordinate').value);
+            const y = parseInt(document.getElementById('y-coordinate').value);
+            const punto = [x, y];
+
+            kdTree = insertar(kdTree, punto);
+            document.getElementById('message').textContent = `Punto (${x}, ${y}) insertado correctamente.`;
+            actualizarVisualizacion();
+        }
+
+        function removePoint() {
+            const x = parseInt(document.getElementById('x-coordinate').value);
+            const y = parseInt(document.getElementById('y-coordinate').value);
+            const punto = [x, y];
+
+            eliminar(kdTree, punto);
+            document.getElementById('message').textContent = `Punto (${x}, ${y}) eliminado correctamente.`;
+        }
+
+        async function visualizarKdTree(nodo, container, depth = 0, top = 50, left = window.innerWidth / 2, offsetX = window.innerWidth / 4) {
+            if (!nodo) return;
+
+            const nodoElemento = document.createElement('div');
+            nodoElemento.className = 'node';
+            nodoElemento.style.top = `${top}px`;
+            nodoElemento.style.left = `${left}px`;
+            nodoElemento.textContent = `(${nodo.punto[0]}, ${nodo.punto[1]})`;
+            nodoElemento.setAttribute('data-x', nodo.punto[0]);
+            nodoElemento.setAttribute('data-y', nodo.punto[1]);
+
+            if (lastInsertedNode && lastInsertedNode.punto[0] === nodo.punto[0] && lastInsertedNode.punto[1] === nodo.punto[1]) {
+                nodoElemento.classList.add('new-node');
+            }
+
+            container.appendChild(nodoElemento);
+
+            requestAnimationFrame(() => {
+                nodoElemento.style.opacity = 1;
+                nodoElemento.style.top = `${top}px`;
+                nodoElemento.style.left = `${left}px`;
+            });
+
+            const offset = offsetX / 2;
+            if (nodo.izquierda) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+                await visualizarKdTree(nodo.izquierda, container, depth + 1, top + 50, left - offset, offset);
+            }
+            if (nodo.derecha) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+                await visualizarKdTree(nodo.derecha, container, depth + 1, top + 50, left + offset, offset);
+            }
+        }
+
+        actualizarVisualizacion();
+    </script>
+</body>
+</html>
